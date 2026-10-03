@@ -17,7 +17,7 @@ If you edit the draft while the model is working, the result is not written over
 Tell the buttons how you want it in two ways:
 
 - **This session only**: type a direction in the Settings panel (e.g. "formal tone, conditions as a list"). It applies to both buttons until you clear it. The band shows when one is on.
-- **Saved**: set the Ask style and Refine style in the same panel (stored as the `askStyle` and `refineStyle` plugin settings).
+- **Saved**: set the Ask style and Refine style in the same panel. Panel choices are kept in the plugin's own store across sessions; the `userConfig` fields in `plugin.json` are only the defaults.
 
 Both are added to the instructions as the user's own direction, never overriding what the draft says.
 

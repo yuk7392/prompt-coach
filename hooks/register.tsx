@@ -1,6 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelUsage, PluginOptions, Register } from 'claude-code'
 
+import type { Prefs } from '../types'
+
 // 개발 중 확인용: 어느 화면에서 입력창을 읽고 채울 수 있는지 trace.log에 남긴다.
 const TRACE = false
 const TRACE_MAX = 200
@@ -11,6 +13,8 @@ const original = atom({ plugin: 'prompt-coach', key: 'original' } as const, null
 const note = atom({ plugin: 'prompt-coach', key: 'note' } as const, '')
 // 빈 답 경고를 한 번 보여 준 초안. 같은 초안을 다시 보내면 그대로 보낸다.
 const warned = atom({ plugin: 'prompt-coach', key: 'warned' } as const, null)
+// 설정 패널에서 바꾼 값. $.store 에 저장해 세션을 넘어 유지하고, 매니페스트 기본값 위에 얹는다.
+const prefs = atom({ plugin: 'prompt-coach', key: 'prefs' } as const, {})
 
 const HEADER = '[Clarify]'
 
@@ -42,18 +46,23 @@ const STRINGS = {
     settingsOpened: 'prompt-coach settings opened.',
     noSettingsHere: 'Settings need an app with text fields.',
     directionOn: 'direction on',
-    noteLabel: 'This session only: how you want it',
-    askStyleLabel: 'Ask style (saved)',
+    noteLabel: 'How you want it',
+    askStyleLabel: 'Ask style',
     askStylePlaceholder: 'e.g. ask about scope and test range first',
-    refineStyleLabel: 'Refine style (saved)',
+    refineStyleLabel: 'Refine style',
     refineStylePlaceholder: 'e.g. list conditions as bullets',
     modelLabel: 'Refine model',
     sessionModel: 'session model',
     close: 'Close',
     saved: 'Saved',
     notSaved: (why: string) => `Not saved (${why})`,
-    effortLabel: 'Refine effort (ignored by models without effort, such as haiku)',
-    usageLabel: 'Show tokens used per press',
+    effortLabel: 'Refine effort',
+    effortHint: 'haiku takes no effort setting, so this applies to sonnet and the session model',
+    sessionSection: 'This session',
+    savedSection: 'Saved',
+    tooShort: 'The draft is too short to refine',
+    notADraft: 'the reply was not a refined draft',
+    usageLabel: 'Tokens per press',
     on: 'on',
     off: 'off',
     usage: (label: string, input: number, cached: number, output: number) =>
@@ -85,18 +94,23 @@ const STRINGS = {
     settingsOpened: 'prompt-coach 설정을 열었어요.',
     noSettingsHere: '설정은 입력칸이 있는 앱에서만 바꿀 수 있어요.',
     directionOn: '원하는 방식 적용 중',
-    noteLabel: '이번 세션만: 원하는 방식',
-    askStyleLabel: '묻기 스타일 (저장)',
+    noteLabel: '원하는 방식',
+    askStyleLabel: '묻기 스타일',
     askStylePlaceholder: '예: 범위와 테스트 범위를 먼저 물어봐',
-    refineStyleLabel: '다듬기 스타일 (저장)',
+    refineStyleLabel: '다듬기 스타일',
     refineStylePlaceholder: '예: 조건은 목록으로',
     modelLabel: '다듬기 모델',
     sessionModel: '세션 모델',
     close: '닫기',
     saved: '저장했어요',
     notSaved: (why: string) => `저장하지 못했어요 (${why})`,
-    effortLabel: '다듬기 effort (haiku처럼 effort가 없는 모델은 무시)',
-    usageLabel: '누를 때마다 쓴 토큰 표시',
+    effortLabel: '다듬기 effort',
+    effortHint: 'haiku는 effort를 쓰지 않아서 sonnet과 세션 모델에만 적용돼요',
+    sessionSection: '이번 세션',
+    savedSection: '저장',
+    tooShort: '다듬기엔 초안이 너무 짧아요',
+    notADraft: '다듬은 초안이 아닌 답이 왔어요',
+    usageLabel: '토큰 표시',
     on: '켜기',
     off: '끄기',
     usage: (label: string, input: number, cached: number, output: number) =>
@@ -230,12 +244,19 @@ const clarifyBlock = async ($: EngineInterface, draft: string, options: PluginOp
     : { isDone: true, text: `${HEADER}\n${questions.map(q => `- ${q}\n  → `).join('\n')}` }
 }
 
+// 이보다 짧은 초안은 다듬을 거리가 없어서 호출하지 않는다.
+const MIN_DRAFT = 12
+
 const refined = async ($: EngineInterface, draft: string, options: PluginOptions): Promise<Outcome> => {
+  if (draft.replace(/\s/g, '').length < MIN_DRAFT) {
+    return { isDone: false, text: t.tooShort }
+  }
+
   const model = await modelFor($, options)
   const r = await $.model.complete({
     model,
     system: await promptFile($, 'refine', options),
-    prompt: draft,
+    prompt: `<draft>\n${draft}\n</draft>`,
     effort: effortFor(options),
     maxTokens: 16000,
   })
@@ -243,9 +264,14 @@ const refined = async ($: EngineInterface, draft: string, options: PluginOptions
   trace($, `complete model=${model} answered=${r.isAnswered}${r.isAnswered ? '' : ` reason=${r.reason}`}`)
   reportUsage($, options, t.refine, r.usage)
 
-  return !r.isAnswered || r.text.trim() === ''
-    ? { isDone: false, text: t.noRefine(r.isAnswered ? t.emptyReply : r.reason) }
-    : { isDone: true, text: r.text.trim() }
+  if (!r.isAnswered) {
+    return { isDone: false, text: t.noRefine(r.reason) }
+  }
+
+  // 태그 안의 결과만 받는다. 태그가 없으면 초안 대신 대화로 답한 것이라 입력창에 넣지 않는다.
+  const body = /<refined>([\s\S]*?)<\/refined>/.exec(r.text)?.[1]?.trim() ?? ''
+
+  return body === '' ? { isDone: false, text: t.noRefine(t.notADraft) } : { isDone: true, text: body }
 }
 
 const askGaps = async ($: EngineInterface, surface: string, options: PluginOptions) => {
@@ -327,15 +353,28 @@ const insertTemplate = async ($: EngineInterface) => {
 
 const SETTINGS = 'coach-settings'
 
+const effective = async ($: EngineInterface, manifest: PluginOptions): Promise<PluginOptions> => ({
+  ...manifest,
+  ...(await read($, prefs)),
+})
+
+const loadPrefs = async ($: EngineInterface) => {
+  const stored = await $.store.get('prefs')
+
+  if (stored !== null && typeof stored === 'object' && !Array.isArray(stored)) {
+    await update($, prefs, () => stored as Prefs)
+  }
+}
+
 const openSettings = async ($: EngineInterface) => {
   await $.ui.open({ id: SETTINGS, title: t.settings, focus: true, closeOnEscape: true })
 }
 
-// 플러그인 설정에 저장한다. 저장하면 모듈이 새 값으로 다시 로드된다.
-const saveSetting = async ($: EngineInterface, field: string, value: string | boolean) => {
-  const r = await $.config.set({ key: `prompt-coach.${field}`, value })
+const saveSetting = async ($: EngineInterface, field: keyof Prefs, value: string | boolean) => {
+  const next = await update($, prefs, all => ({ ...all, [field]: value }))
 
-  $.ui.toast(r.deny === undefined ? t.saved : t.notSaved(r.deny))
+  await $.store.set('prefs', next)
+  $.ui.toast(t.saved)
 }
 
 const restore = async ($: EngineInterface) => {
@@ -352,9 +391,10 @@ const restore = async ($: EngineInterface) => {
   }
 }
 
-export const register: Register = (on, options) => {
+export const register: Register = (on, manifest) => {
   on('session.start', async ($, e, next) => {
     await pickLanguage($)
+    await loadPrefs($)
     trace($, `start surfaces=${JSON.stringify(await $.session.surfaces())}`)
     // 입력창을 직접 그리는 화면(데스크톱 등)에서도 쓸 수 있는 길. 초안을 인자로 받는다.
     await $.command.register({ name: 'coach-ask', description: t.askCommand, argumentHint: '<draft>' })
@@ -365,6 +405,7 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'coach-ask' }, async ($, e) => {
+    const options = await effective($, manifest)
     const draft = e.args.trim()
 
     if (draft === '') {
@@ -384,6 +425,7 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'coach-refine' }, async ($, e) => {
+    const options = await effective($, manifest)
     const draft = e.args.trim()
 
     if (draft === '') {
@@ -425,6 +467,7 @@ export const register: Register = (on, options) => {
       return next(e)
     }
 
+    const options = await effective($, manifest)
     const working = await read($, busy)
     const kept = await read($, original)
     const direction = await read($, note)
@@ -432,22 +475,33 @@ export const register: Register = (on, options) => {
 
     trace($, `band surface=${e.surface}`)
 
+    // 전사 화면처럼 꾸밈 없이 한 줄로: 흐린 글씨, 대괄호 없는 버튼, 가운뎃점 구분.
     if (working !== null) {
       return (
         <Box>
-          <Text dimColor>{working}</Text>
+          <Text dimColor>⎿  {working}</Text>
         </Box>
       )
     }
 
+    const actions = [
+      { key: 'template', label: t.template, hotkey: 't', run: () => void insertTemplate($) },
+      { key: 'ask', label: t.ask, hotkey: 'q', run: () => void askGaps($, e.surface, options) },
+      { key: 'refine', label: t.refine, hotkey: 'r', run: () => void refine($, e.surface, options) },
+      ...(kept === null ? [] : [{ key: 'undo', label: t.undo, hotkey: 'u', run: () => void restore($) }]),
+      { key: 'settings', label: t.settings, hotkey: 's', run: () => void openSettings($) },
+    ]
+
     return (
-      <Box gap={1}>
-        <Button key="template" label={t.template} hotkey="t" onPress={() => void insertTemplate($)} />
-        <Button key="ask" label={t.ask} hotkey="q" onPress={() => void askGaps($, e.surface, options)} />
-        <Button key="refine" label={t.refine} hotkey="r" onPress={() => void refine($, e.surface, options)} />
-        {kept !== null && <Button key="undo" label={t.undo} hotkey="u" onPress={() => void restore($)} />}
-        <Button key="settings" label={t.settings} hotkey="s" onPress={() => void openSettings($)} />
-        {direction.trim() !== '' && <Text dimColor>· {t.directionOn}</Text>}
+      <Box>
+        <Text dimColor>⎿  </Text>
+        {actions.map((one, index) => (
+          <Box key={`slot-${one.key}`}>
+            {index > 0 && <Text dimColor> · </Text>}
+            <Button key={one.key} label={one.label} hotkey={one.hotkey} plain dimColor onPress={one.run} />
+          </Box>
+        ))}
+        {direction.trim() !== '' && <Text dimColor>  ({t.directionOn})</Text>}
       </Box>
     )
   })
@@ -467,6 +521,7 @@ export const register: Register = (on, options) => {
     }
 
     const direction = await read($, note)
+    const options = await effective($, manifest)
     const { Box, Button, Input, Select, Text } = $.ui.resolve(e)
     const saved = (field: string) => {
       const value = options[field]
@@ -474,44 +529,44 @@ export const register: Register = (on, options) => {
       return typeof value === 'string' ? value : ''
     }
 
+    const model = saved('refineModel') || 'haiku'
+
+    // 전사 화면처럼: 흐린 라벨과 값이 한 줄씩, 굵은 제목이나 테두리 없이.
     return (
-      <Box flexDirection="column" gap={1}>
-        <Box flexDirection="column">
-          <Text bold>{t.noteLabel}</Text>
-          <Input
-            key="note"
-            placeholder={t.placeholder}
-            value={direction}
-            submitLabel={t.save}
-            autoFocus
-            onInput={(value: string) => void update($, note, () => value)}
-            onSubmit={(value: string) => void update($, note, () => value.trim())}
-          />
-        </Box>
-        <Box flexDirection="column">
-          <Text bold>{t.askStyleLabel}</Text>
-          <Input
-            key="askStyle"
-            placeholder={t.askStylePlaceholder}
-            value={saved('askStyle')}
-            submitLabel={t.save}
-            onSubmit={(value: string) => void saveSetting($, 'askStyle', value.trim())}
-          />
-        </Box>
-        <Box flexDirection="column">
-          <Text bold>{t.refineStyleLabel}</Text>
-          <Input
-            key="refineStyle"
-            placeholder={t.refineStylePlaceholder}
-            value={saved('refineStyle')}
-            submitLabel={t.save}
-            onSubmit={(value: string) => void saveSetting($, 'refineStyle', value.trim())}
-          />
-        </Box>
+      <Box flexDirection="column">
+        <Text dimColor>{t.sessionSection}</Text>
+        <Input
+          key="note"
+          label={`  ${t.noteLabel}  `}
+          placeholder={t.placeholder}
+          value={direction}
+          submitLabel={t.save}
+          autoFocus
+          onInput={(value: string) => void update($, note, () => value)}
+          onSubmit={(value: string) => void update($, note, () => value.trim())}
+        />
+        <Text dimColor> </Text>
+        <Text dimColor>{t.savedSection}</Text>
+        <Input
+          key="askStyle"
+          label={`  ${t.askStyleLabel}  `}
+          placeholder={t.askStylePlaceholder}
+          value={saved('askStyle')}
+          submitLabel={t.save}
+          onSubmit={(value: string) => void saveSetting($, 'askStyle', value.trim())}
+        />
+        <Input
+          key="refineStyle"
+          label={`  ${t.refineStyleLabel}  `}
+          placeholder={t.refineStylePlaceholder}
+          value={saved('refineStyle')}
+          submitLabel={t.save}
+          onSubmit={(value: string) => void saveSetting($, 'refineStyle', value.trim())}
+        />
         <Select
           key="refineModel"
-          label={t.modelLabel}
-          value={saved('refineModel') || 'haiku'}
+          label={`  ${t.modelLabel}  `}
+          value={model}
           options={[
             { value: 'haiku', label: 'haiku' },
             { value: 'sonnet', label: 'sonnet' },
@@ -521,14 +576,15 @@ export const register: Register = (on, options) => {
         />
         <Select
           key="refineEffort"
-          label={t.effortLabel}
+          label={`  ${t.effortLabel}  `}
           value={effortFor(options)}
           options={EFFORTS.map(one => ({ value: one, label: one }))}
           onSelect={(value: string) => void saveSetting($, 'refineEffort', value)}
         />
+        {model === 'haiku' && <Text dimColor>    ⎿  {t.effortHint}</Text>}
         <Select
           key="showUsage"
-          label={t.usageLabel}
+          label={`  ${t.usageLabel}  `}
           value={options.showUsage === true ? 'on' : 'off'}
           options={[
             { value: 'off', label: t.off },
@@ -536,7 +592,8 @@ export const register: Register = (on, options) => {
           ]}
           onSelect={(value: string) => void saveSetting($, 'showUsage', value === 'on')}
         />
-        <Button key="close" label={t.close} role="dismiss" onPress={() => void $.ui.close({ id: SETTINGS })} />
+        <Text dimColor> </Text>
+        <Button key="close" label={t.close} role="dismiss" plain dimColor onPress={() => void $.ui.close({ id: SETTINGS })} />
       </Box>
     )
   })
