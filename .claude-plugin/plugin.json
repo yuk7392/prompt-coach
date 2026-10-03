@@ -40,6 +40,25 @@
       "title": "Refine style",
       "description": "Standing direction for the Refine button, e.g. \"list conditions as bullets\"",
       "default": ""
+    },
+    "refineEffort": {
+      "type": "string",
+      "title": "Refine effort",
+      "description": "Effort for the Refine call; models without effort (haiku) ignore it",
+      "default": "low",
+      "options": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "showUsage": {
+      "type": "boolean",
+      "title": "Show tokens used",
+      "description": "Show a toast with the tokens each press used",
+      "default": false
     }
   }
 }

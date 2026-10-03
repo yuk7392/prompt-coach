@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, PluginOptions, Register } from 'claude-code'
+import type { EngineInterface, ModelUsage, PluginOptions, Register } from 'claude-code'
 
 // 개발 중 확인용: 어느 화면에서 입력창을 읽고 채울 수 있는지 trace.log에 남긴다.
 const TRACE = false
@@ -52,6 +52,12 @@ const STRINGS = {
     close: 'Close',
     saved: 'Saved',
     notSaved: (why: string) => `Not saved (${why})`,
+    effortLabel: 'Refine effort (ignored by models without effort, such as haiku)',
+    usageLabel: 'Show tokens used per press',
+    on: 'on',
+    off: 'off',
+    usage: (label: string, input: number, cached: number, output: number) =>
+      `${label}: input ${input} + cache ${cached}, output ${output} tokens`,
   },
   ko: {
     changed: '그 사이 입력이 바뀌어서 반영하지 않았어요',
@@ -89,6 +95,12 @@ const STRINGS = {
     close: '닫기',
     saved: '저장했어요',
     notSaved: (why: string) => `저장하지 못했어요 (${why})`,
+    effortLabel: '다듬기 effort (haiku처럼 effort가 없는 모델은 무시)',
+    usageLabel: '누를 때마다 쓴 토큰 표시',
+    on: '켜기',
+    off: '끄기',
+    usage: (label: string, input: number, cached: number, output: number) =>
+      `${label}: 입력 ${input} + 캐시 ${cached}, 출력 ${output} 토큰`,
   },
 }
 
@@ -176,12 +188,32 @@ const readDraft = async ($: EngineInterface, surface: string) => {
 }
 
 // 버튼과 슬래시 명령이 함께 쓰는 핵심. 성공하면 결과, 실패하면 보여 줄 문구를 돌려준다.
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+
+const effortFor = (options: PluginOptions) => {
+  const chosen = options.refineEffort
+
+  return EFFORTS.find(one => one === chosen) ?? 'low'
+}
+
+// 설정에서 켜면 호출마다 쓴 토큰을 토스트로 보여 준다. 결과에 실려 오는 값이라 추가 비용이 없다.
+const reportUsage = ($: EngineInterface, options: PluginOptions, label: string, usage: ModelUsage | undefined) => {
+  if (options.showUsage !== true || usage === undefined) {
+    return
+  }
+
+  $.ui.toast(t.usage(label, usage.input_tokens + usage.cache_creation_input_tokens, usage.cache_read_input_tokens, usage.output_tokens), {
+    timeoutMs: 8000,
+  })
+}
+
 type Outcome = { text: string; isDone: true } | { text: string; isDone: false }
 
 const clarifyBlock = async ($: EngineInterface, draft: string, options: PluginOptions): Promise<Outcome> => {
   const r = await $.model.fork({ prompt: await promptFile($, 'ask', options, draft) })
 
   trace($, `fork answered=${r.isAnswered}${r.isAnswered ? '' : ` reason=${r.reason}`}`)
+  reportUsage($, options, t.ask, 'usage' in r ? r.usage : undefined)
 
   if (!r.isAnswered) {
     return { isDone: false, text: r.reason === 'nothing-to-fork' ? t.noHistory : t.noQuestions(r.reason) }
@@ -204,11 +236,12 @@ const refined = async ($: EngineInterface, draft: string, options: PluginOptions
     model,
     system: await promptFile($, 'refine', options),
     prompt: draft,
-    effort: 'low',
+    effort: effortFor(options),
     maxTokens: 16000,
   })
 
   trace($, `complete model=${model} answered=${r.isAnswered}${r.isAnswered ? '' : ` reason=${r.reason}`}`)
+  reportUsage($, options, t.refine, r.usage)
 
   return !r.isAnswered || r.text.trim() === ''
     ? { isDone: false, text: t.noRefine(r.isAnswered ? t.emptyReply : r.reason) }
@@ -299,7 +332,7 @@ const openSettings = async ($: EngineInterface) => {
 }
 
 // 플러그인 설정에 저장한다. 저장하면 모듈이 새 값으로 다시 로드된다.
-const saveSetting = async ($: EngineInterface, field: string, value: string) => {
+const saveSetting = async ($: EngineInterface, field: string, value: string | boolean) => {
   const r = await $.config.set({ key: `prompt-coach.${field}`, value })
 
   $.ui.toast(r.deny === undefined ? t.saved : t.notSaved(r.deny))
@@ -485,6 +518,23 @@ export const register: Register = (on, options) => {
             { value: 'session', label: t.sessionModel },
           ]}
           onSelect={(value: string) => void saveSetting($, 'refineModel', value)}
+        />
+        <Select
+          key="refineEffort"
+          label={t.effortLabel}
+          value={effortFor(options)}
+          options={EFFORTS.map(one => ({ value: one, label: one }))}
+          onSelect={(value: string) => void saveSetting($, 'refineEffort', value)}
+        />
+        <Select
+          key="showUsage"
+          label={t.usageLabel}
+          value={options.showUsage === true ? 'on' : 'off'}
+          options={[
+            { value: 'off', label: t.off },
+            { value: 'on', label: t.on },
+          ]}
+          onSelect={(value: string) => void saveSetting($, 'showUsage', value === 'on')}
         />
         <Button key="close" label={t.close} role="dismiss" onPress={() => void $.ui.close({ id: SETTINGS })} />
       </Box>

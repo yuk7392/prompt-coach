@@ -8,7 +8,7 @@ A Claude Code mod (a function-hook plugin) that puts buttons above the prompt bo
 - **Refine** (`r`): keeps every fact and condition you wrote and rewrites the draft in plain, ASD-STE100-style sentences (one instruction per sentence, active voice, one term per concept), folding answered `[Clarify]` items into the body and dropping unanswered ones. The model is the `refineModel` setting (`haiku` by default, `sonnet`, or `session`).
 - **Template** (`t`): inserts a prompt skeleton from `templates/default.md` (`default.ko.md` when the band is in Korean), into an empty box or after the draft. No model call.
 - **Undo** (`u`): restores the draft from before the last ask or refine. Sending the prompt clears it.
-- **Settings** (`s`): opens a panel for how you want it (see below) and the Refine model. `/coach-settings` opens it too.
+- **Settings** (`s`): opens a panel for how you want it (see below), the Refine model and effort, and a switch that shows the tokens each press used. `/coach-settings` opens it too.
 
 If you send a draft whose `[Clarify]` list still has an empty answer, the first Enter is stopped with a notice and the draft stays in the box; a second Enter on the same draft sends it. No model call.
 
