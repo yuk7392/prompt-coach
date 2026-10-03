@@ -44,3 +44,7 @@ Click the band above the prompt, or press ctrl+x tab, then press a button's key.
 - Passes `claude plugin validate` and `tsc` on Claude Code 2.1.286.
 - Not yet tried in a live session: the buttons have not been pressed end to end.
 - Claude Code Desktop draws its own prompt box, where the plugin API may refuse `$.prompt.fill`; checking with `trace.log`.
+
+## License
+
+MIT. See `LICENSE`.

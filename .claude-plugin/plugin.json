@@ -8,6 +8,7 @@
   },
   "homepage": "https://github.com/yuk7392/prompt-coach",
   "repository": "https://github.com/yuk7392/prompt-coach",
+  "license": "MIT",
   "keywords": [
     "prompt",
     "refine",
