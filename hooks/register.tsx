@@ -8,7 +8,7 @@ const TRACE_MAX = 200
 const busy = atom({ plugin: 'prompt-coach', key: 'busy' } as const, null)
 const original = atom({ plugin: 'prompt-coach', key: 'original' } as const, null)
 
-const HEADER = '[확인할 것]'
+const HEADER = '[Clarify]'
 
 // 기본 지시문은 prompts/*.md 에 있다. 사용자가 고칠 수 있게 버튼을 누를 때마다 새로 읽는다.
 const promptFile = async ($: EngineInterface, name: 'ask' | 'refine') =>
@@ -89,7 +89,7 @@ const askGaps = async ($: EngineInterface, surface: string) => {
     const questions = r.text
       .split('\n')
       .map(line => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
-      .filter(line => line !== '' && line !== '없음')
+      .filter(line => line !== '' && line.toUpperCase() !== 'NONE')
       .slice(0, 3)
 
     if (questions.length === 0) {

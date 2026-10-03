@@ -1,24 +1,24 @@
 # prompt-coach
 
-Claude Code 모드(함수 훅 플러그인). 프롬프트 입력창 위에 버튼 세 개를 띄운다.
+A Claude Code mod (a function-hook plugin) that puts three buttons above the prompt box.
 
-- **빠진 것 묻기** (`q`): 지금까지의 대화와 입력 중인 초안을 보고, 모델이 작업 전에 물었을 질문을 최대 3개 초안 아래 `[확인할 것]` 목록으로 붙인다. 세션 모델로 대화를 이어 묻는 호출이라 캐시를 재사용한다.
-- **다듬기** (`r`): 쓴 사실·조건은 그대로 두고 순서와 문장만 정리해 바꿔 넣는다. 답을 채운 질문은 본문 조건으로 녹이고, 빈 질문은 지운다. 모델은 설정의 `refineModel`(session·haiku·sonnet)로 고른다.
-- **되돌리기** (`u`): 묻기·다듬기 전의 원문으로 되돌린다. 보내면 사라진다.
+- **Ask what's missing** (`q`): reads the conversation so far and the draft you are typing, and appends up to three questions the model would have asked before starting, under a `[Clarify]` list with a blank after each. It forks the session's own conversation, so it runs on the session model and reuses the prompt cache.
+- **Refine** (`r`): keeps every fact and condition you wrote and reorders and tightens the draft, folding answered `[Clarify]` items into the body and dropping unanswered ones. The model is the `refineModel` setting (`session`, `haiku`, `sonnet`).
+- **Undo** (`u`): restores the draft from before the last ask or refine. Sending the prompt clears it.
 
-모델이 일하는 동안 입력을 고치면 결과를 덮어쓰지 않는다.
+If you edit the draft while the model is working, the result is not written over your edit.
 
-두 버튼의 기본 지시문은 `prompts/ask.md`, `prompts/refine.md`에 있고 버튼을 누를 때마다 새로 읽는다. `ask.md`의 `{{draft}}` 자리에 초안이 들어간다.
+The instructions for both buttons live in `prompts/ask.md` and `prompts/refine.md` and are read on every press, so edits take effect at once. `{{draft}}` in `ask.md` is replaced by the draft. Both tell the model to answer in the draft's language.
 
-## 쓰는 법
+## Use
 
 ```bash
-claude --plugin-dir C:/Claude/prompt-coach
+claude --plugin-dir /path/to/prompt-coach
 ```
 
-버튼은 띠를 클릭하거나 ctrl+x tab으로 띠에 들어간 뒤 단축키로 누른다.
+Click the band above the prompt, or press ctrl+x tab, then press a button's key.
 
-## 확인 상태
+## Status
 
-- 2.1.286 빌드의 `claude plugin validate`, `tsc` 통과.
-- 데스크톱 Code 탭은 자체 입력창을 그려서 `$.prompt.fill`이 거부될 수 있다(선언상). 실제 동작은 `trace.log`로 확인 중.
+- Passes `claude plugin validate` and `tsc` on Claude Code 2.1.286.
+- Claude Code Desktop draws its own prompt box, where the plugin API may refuse `$.prompt.fill`; checking with `trace.log`.

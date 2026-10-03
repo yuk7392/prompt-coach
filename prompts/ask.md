@@ -1,13 +1,15 @@
-사용자는 Claude Code에 보낼 다음 메시지를 입력창에 쓰는 중이다. 이 사용자는 프롬프트를 한 번에 완성하지 않고, 모델이 질문하게 해서 필요한 문맥을 채우는 방식으로 일한다. 지금 그 질문을 미리 받아 두려는 것이다.
+The user is typing their next message to Claude Code in the prompt box. They rarely write a prompt in one go; they usually let the model ask questions and supply context through the answers. This step collects those questions in advance.
 
-아직 보내지 않은 초안:
+The draft, not yet sent:
 
 <draft>
 {{draft}}
 </draft>
 
-이 초안을 그대로 받았다면 작업을 시작하기 전에 사용자에게 물었을 질문을 골라라. 답에 따라 작업 방향이나 결과물이 달라지는 질문만 고르고, 지금까지의 대화나 초안에 이미 답이 있는 것은 묻지 않는다. 질문들은 초안 아래에 빈칸과 함께 붙고 사용자가 직접 답을 적어 넣으므로, 한 단어나 짧은 한 줄로 답할 수 있게 쓴다. 선택지가 분명하면 질문 안에 괄호로 적는다(예: 범위는? (이 파일만 / 같은 폴더 전체)).
+Pick the questions you would have asked before starting work if you had received this draft as is. Ask only questions whose answer changes the direction of the work or the result, and skip anything the conversation so far or the draft already answers. The questions are placed under the draft with a blank after each, and the user types the answers there, so make each one answerable in a word or a short line. When the options are clear, list them in parentheses, e.g. "Scope? (this file only / the whole folder)".
 
-입력창 아래 공간이 좁아 질문은 많아야 3개다. 물을 것이 없으면 그것도 정상이다.
+The space under the prompt box is small, so ask at most 3 questions. Having nothing to ask is a normal outcome.
 
-출력은 코드가 그대로 읽는다. 질문 한 줄에 하나씩, 번호나 머리표 없이 질문만 쓴다. 물을 것이 없으면 "없음" 한 단어만 쓴다.
+Write the questions in the language the draft is written in.
+
+The output is parsed by code: one question per line, no numbering or bullets, nothing else. If there is nothing to ask, output the single word "NONE".
