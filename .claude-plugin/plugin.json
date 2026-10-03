@@ -1,7 +1,20 @@
 {
   "name": "prompt-coach",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Buttons above the prompt box that ask what your draft is missing and refine it",
+  "author": {
+    "name": "yuk7392",
+    "url": "https://github.com/yuk7392"
+  },
+  "homepage": "https://github.com/yuk7392/prompt-coach",
+  "repository": "https://github.com/yuk7392/prompt-coach",
+  "keywords": [
+    "prompt",
+    "refine",
+    "clarify",
+    "mod",
+    "prompt-box"
+  ],
   "types": "./types/index.d.ts",
   "userConfig": {
     "refineModel": {

@@ -20,11 +20,22 @@ The band speaks Korean when `language` in settings.json is Korean, and English o
 
 The instructions for both buttons live in `prompts/ask.md` and `prompts/refine.md` and are read on every press, so edits take effect at once. `{{draft}}` in `ask.md` is replaced by the draft, and `{{style}}` in both by your direction. Both tell the model to answer in the draft's language.
 
-## Use
+## Install
+
+This repository is also a plugin marketplace. In Claude Code:
+
+```
+/plugin marketplace add yuk7392/prompt-coach
+/plugin install prompt-coach@prompt-coach
+```
+
+To try a local checkout instead:
 
 ```bash
 claude --plugin-dir /path/to/prompt-coach
 ```
+
+## Use
 
 Click the band above the prompt, or press ctrl+x tab, then press a button's key.
 

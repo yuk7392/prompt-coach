@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 // 개발 중 확인용: 어느 화면에서 입력창을 읽고 채울 수 있는지 trace.log에 남긴다.
-const TRACE = true
+const TRACE = false
 const TRACE_MAX = 200
 
 const busy = atom({ plugin: 'prompt-coach', key: 'busy' } as const, null)
