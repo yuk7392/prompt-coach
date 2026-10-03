@@ -10,24 +10,9 @@ const original = atom({ plugin: 'prompt-coach', key: 'original' } as const, null
 
 const HEADER = '[확인할 것]'
 
-const ASK_PROMPT = (draft: string) => `사용자가 다음 메시지를 입력하는 중이다. 아직 보내지 않은 초안이다.
-
-<draft>
-${draft}
-</draft>
-
-이 초안을 그대로 받았다면 작업을 시작하기 전에 사용자에게 물었을 질문을 지금까지의 대화를 근거로 최대 3개 골라라. 대화나 초안에 이미 답이 있는 것은 묻지 않는다. 답에 따라 작업 방향이 갈리는 질문만 고른다.
-
-출력 형식: 질문 한 줄에 하나씩, 번호·머리표·설명 없이 질문만 쓴다. 물을 것이 없으면 "없음" 한 단어만 쓴다.`
-
-const REFINE_SYSTEM = `너는 사용자가 Claude Code에 보낼 프롬프트 초안을 다듬는다.
-
-- 사용자가 쓴 사실·조건·이름·경로·숫자를 하나도 빼거나 바꾸지 않는다. 초안에 없는 요구를 지어내지 않는다.
-- 초안에 "${HEADER}" 목록이 있으면, 답이 채워진 항목은 본문의 조건으로 녹이고 목록은 지운다. 답이 비어 있는 질문은 지운다.
-- 순서는 목표, 맥락, 조건, 끝났다고 볼 기준 순으로 정리한다. 기준이 초안에 없으면 만들지 않는다.
-- 초안과 같은 언어로, 짧은 평서문으로 쓴다.
-
-다듬은 프롬프트 본문만 출력한다. 설명, 따옴표, 코드블록을 붙이지 않는다.`
+// 기본 지시문은 prompts/*.md 에 있다. 사용자가 고칠 수 있게 버튼을 누를 때마다 새로 읽는다.
+const promptFile = async ($: EngineInterface, name: 'ask' | 'refine') =>
+  await $.fs.read(`${$.plugin.root}/prompts/${name}.md`)
 
 const traced: string[] = []
 
@@ -91,7 +76,7 @@ const askGaps = async ($: EngineInterface, surface: string) => {
   await update($, busy, () => '빠진 것 찾는 중…')
 
   try {
-    const r = await $.model.fork({ prompt: ASK_PROMPT(draft) })
+    const r = await $.model.fork({ prompt: (await promptFile($, 'ask')).replace('{{draft}}', () => draft) })
 
     trace($, `fork answered=${r.isAnswered}${r.isAnswered ? '' : ` reason=${r.reason}`}`)
 
@@ -133,7 +118,13 @@ const refine = async ($: EngineInterface, surface: string, options: PluginOption
 
   try {
     const model = await modelFor($, options)
-    const r = await $.model.complete({ model, system: REFINE_SYSTEM, prompt: draft, maxTokens: 4000 })
+    const r = await $.model.complete({
+      model,
+      system: await promptFile($, 'refine'),
+      prompt: draft,
+      effort: 'low',
+      maxTokens: 16000,
+    })
 
     trace($, `complete model=${model} answered=${r.isAnswered}${r.isAnswered ? '' : ` reason=${r.reason}`}`)
 
