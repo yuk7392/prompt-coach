@@ -3,7 +3,7 @@
 A Claude Code mod (a function-hook plugin) that puts three buttons above the prompt box.
 
 - **Ask what's missing** (`q`): reads the conversation so far and the draft you are typing, and appends up to three questions the model would have asked before starting, under a `[Clarify]` list with a blank after each. It forks the session's own conversation, so it runs on the session model and reuses the prompt cache.
-- **Refine** (`r`): keeps every fact and condition you wrote and reorders and tightens the draft, folding answered `[Clarify]` items into the body and dropping unanswered ones. The model is the `refineModel` setting (`session`, `haiku`, `sonnet`).
+- **Refine** (`r`): keeps every fact and condition you wrote and rewrites the draft in plain, ASD-STE100-style sentences (one instruction per sentence, active voice, one term per concept), folding answered `[Clarify]` items into the body and dropping unanswered ones. The model is the `refineModel` setting (`session`, `haiku`, `sonnet`).
 - **Undo** (`u`): restores the draft from before the last ask or refine. Sending the prompt clears it.
 
 If you edit the draft while the model is working, the result is not written over your edit.

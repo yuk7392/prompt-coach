@@ -4,7 +4,9 @@ Keep every fact, condition, name, path, and number the user wrote, unchanged, be
 
 If the draft contains a "[Clarify]" list, fold each answered item into the body as a condition and remove the list. Drop questions left unanswered.
 
-Order the prompt so the agent learns the goal first: goal, context, constraints, then what counts as done. Use short declarative sentences.
+Order the prompt so the agent learns the goal first: goal, context, constraints, then what counts as done.
+
+Write in the style of ASD-STE100 Simplified Technical English, because a plain prompt leaves the agent less to misread. Put one instruction in each sentence. Use the active voice, and the imperative for instructions. Keep instruction sentences to about 20 words and descriptive sentences to about 25; in Korean, about 15 and 20 eojeol. These are targets, not hard cuts: keep a longer sentence when splitting it would lose a condition. Use one term for one thing throughout, and keep the user's own names for files, screens, and functions. Leave out idioms and filler.
 
 {{style}}
 Write in the language the draft is written in.
