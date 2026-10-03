@@ -35,6 +35,23 @@ const STRINGS = {
     undo: 'Undo',
     template: 'Template',
     blank: (n: number) => `${n} [Clarify] question(s) have no answer. Press Enter again to send anyway.`,
+    askCommand: 'Ask what the given draft is missing (for apps that draw their own prompt box)',
+    refineCommand: 'Refine the given draft (for apps that draw their own prompt box)',
+    copied: '(Copied to the clipboard.)',
+    settings: 'Settings',
+    settingsOpened: 'prompt-coach settings opened.',
+    noSettingsHere: 'Settings need an app with text fields.',
+    directionOn: 'direction on',
+    noteLabel: 'This session only: how you want it',
+    askStyleLabel: 'Ask style (saved)',
+    askStylePlaceholder: 'e.g. ask about scope and test range first',
+    refineStyleLabel: 'Refine style (saved)',
+    refineStylePlaceholder: 'e.g. list conditions as bullets',
+    modelLabel: 'Refine model',
+    sessionModel: 'session model',
+    close: 'Close',
+    saved: 'Saved',
+    notSaved: (why: string) => `Not saved (${why})`,
   },
   ko: {
     changed: '그 사이 입력이 바뀌어서 반영하지 않았어요',
@@ -55,6 +72,23 @@ const STRINGS = {
     undo: '되돌리기',
     template: '골격',
     blank: (n: number) => `[Clarify] 질문 ${n}개에 답이 비어 있어요. 그대로 보내려면 다시 Enter를 누르세요.`,
+    askCommand: '적은 초안에 빠진 것을 묻는다 (입력창을 직접 그리는 앱용)',
+    refineCommand: '적은 초안을 다듬는다 (입력창을 직접 그리는 앱용)',
+    copied: '(클립보드에 복사했어요.)',
+    settings: '설정',
+    settingsOpened: 'prompt-coach 설정을 열었어요.',
+    noSettingsHere: '설정은 입력칸이 있는 앱에서만 바꿀 수 있어요.',
+    directionOn: '원하는 방식 적용 중',
+    noteLabel: '이번 세션만: 원하는 방식',
+    askStyleLabel: '묻기 스타일 (저장)',
+    askStylePlaceholder: '예: 범위와 테스트 범위를 먼저 물어봐',
+    refineStyleLabel: '다듬기 스타일 (저장)',
+    refineStylePlaceholder: '예: 조건은 목록으로',
+    modelLabel: '다듬기 모델',
+    sessionModel: '세션 모델',
+    close: '닫기',
+    saved: '저장했어요',
+    notSaved: (why: string) => `저장하지 못했어요 (${why})`,
   },
 }
 
@@ -141,6 +175,46 @@ const readDraft = async ($: EngineInterface, surface: string) => {
   return box.text
 }
 
+// 버튼과 슬래시 명령이 함께 쓰는 핵심. 성공하면 결과, 실패하면 보여 줄 문구를 돌려준다.
+type Outcome = { text: string; isDone: true } | { text: string; isDone: false }
+
+const clarifyBlock = async ($: EngineInterface, draft: string, options: PluginOptions): Promise<Outcome> => {
+  const r = await $.model.fork({ prompt: await promptFile($, 'ask', options, draft) })
+
+  trace($, `fork answered=${r.isAnswered}${r.isAnswered ? '' : ` reason=${r.reason}`}`)
+
+  if (!r.isAnswered) {
+    return { isDone: false, text: r.reason === 'nothing-to-fork' ? t.noHistory : t.noQuestions(r.reason) }
+  }
+
+  const questions = r.text
+    .split('\n')
+    .map(line => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
+    .filter(line => line !== '' && line.toUpperCase() !== 'NONE')
+    .slice(0, 3)
+
+  return questions.length === 0
+    ? { isDone: false, text: t.nothingToAsk }
+    : { isDone: true, text: `${HEADER}\n${questions.map(q => `- ${q}\n  → `).join('\n')}` }
+}
+
+const refined = async ($: EngineInterface, draft: string, options: PluginOptions): Promise<Outcome> => {
+  const model = await modelFor($, options)
+  const r = await $.model.complete({
+    model,
+    system: await promptFile($, 'refine', options),
+    prompt: draft,
+    effort: 'low',
+    maxTokens: 16000,
+  })
+
+  trace($, `complete model=${model} answered=${r.isAnswered}${r.isAnswered ? '' : ` reason=${r.reason}`}`)
+
+  return !r.isAnswered || r.text.trim() === ''
+    ? { isDone: false, text: t.noRefine(r.isAnswered ? t.emptyReply : r.reason) }
+    : { isDone: true, text: r.text.trim() }
+}
+
 const askGaps = async ($: EngineInterface, surface: string, options: PluginOptions) => {
   const draft = await readDraft($, surface)
 
@@ -151,32 +225,16 @@ const askGaps = async ($: EngineInterface, surface: string, options: PluginOptio
   await update($, busy, () => t.asking)
 
   try {
-    const r = await $.model.fork({ prompt: await promptFile($, 'ask', options, draft) })
+    const r = await clarifyBlock($, draft, options)
 
-    trace($, `fork answered=${r.isAnswered}${r.isAnswered ? '' : ` reason=${r.reason}`}`)
-
-    if (!r.isAnswered) {
-      $.ui.toast(r.reason === 'nothing-to-fork' ? t.noHistory : t.noQuestions(r.reason))
+    if (!r.isDone) {
+      $.ui.toast(r.text)
 
       return
     }
-
-    const questions = r.text
-      .split('\n')
-      .map(line => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
-      .filter(line => line !== '' && line.toUpperCase() !== 'NONE')
-      .slice(0, 3)
-
-    if (questions.length === 0) {
-      $.ui.toast(t.nothingToAsk)
-
-      return
-    }
-
-    const block = `\n\n${HEADER}\n${questions.map(q => `- ${q}\n  → `).join('\n')}`
 
     await update($, original, () => draft)
-    await fillIfUnchanged($, draft, block, 'append')
+    await fillIfUnchanged($, draft, `\n\n${r.text}`, 'append')
   } finally {
     await update($, busy, () => null)
   }
@@ -192,19 +250,10 @@ const refine = async ($: EngineInterface, surface: string, options: PluginOption
   await update($, busy, () => t.refining)
 
   try {
-    const model = await modelFor($, options)
-    const r = await $.model.complete({
-      model,
-      system: await promptFile($, 'refine', options),
-      prompt: draft,
-      effort: 'low',
-      maxTokens: 16000,
-    })
+    const r = await refined($, draft, options)
 
-    trace($, `complete model=${model} answered=${r.isAnswered}${r.isAnswered ? '' : ` reason=${r.reason}`}`)
-
-    if (!r.isAnswered || r.text.trim() === '') {
-      $.ui.toast(t.noRefine(r.isAnswered ? t.emptyReply : r.reason))
+    if (!r.isDone) {
+      $.ui.toast(r.text)
 
       return
     }
@@ -216,7 +265,7 @@ const refine = async ($: EngineInterface, surface: string, options: PluginOption
       await update($, original, () => draft)
     }
 
-    await fillIfUnchanged($, draft, r.text.trim(), 'replace')
+    await fillIfUnchanged($, draft, r.text, 'replace')
   } finally {
     await update($, busy, () => null)
   }
@@ -243,6 +292,19 @@ const insertTemplate = async ($: EngineInterface) => {
   trace($, `template isFilled=${filled.isFilled} refusal=${filled.refusal ?? '-'}`)
 }
 
+const SETTINGS = 'coach-settings'
+
+const openSettings = async ($: EngineInterface) => {
+  await $.ui.open({ id: SETTINGS, title: t.settings, focus: true, closeOnEscape: true })
+}
+
+// 플러그인 설정에 저장한다. 저장하면 모듈이 새 값으로 다시 로드된다.
+const saveSetting = async ($: EngineInterface, field: string, value: string) => {
+  const r = await $.config.set({ key: `prompt-coach.${field}`, value })
+
+  $.ui.toast(r.deny === undefined ? t.saved : t.notSaved(r.deny))
+}
+
 const restore = async ($: EngineInterface) => {
   const kept = await read($, original)
 
@@ -261,8 +323,49 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await pickLanguage($)
     trace($, `start surfaces=${JSON.stringify(await $.session.surfaces())}`)
+    // 입력창을 직접 그리는 화면(데스크톱 등)에서도 쓸 수 있는 길. 초안을 인자로 받는다.
+    await $.command.register({ name: 'coach-ask', description: t.askCommand, argumentHint: '<draft>' })
+    await $.command.register({ name: 'coach-refine', description: t.refineCommand, argumentHint: '<draft>' })
+    await $.command.register({ name: 'coach-settings', description: t.settings })
 
     return next(e)
+  })
+
+  on('command.run', { command: 'coach-ask' }, async ($, e) => {
+    const draft = e.args.trim()
+
+    if (draft === '') {
+      return { text: t.empty }
+    }
+
+    const r = await clarifyBlock($, draft, options)
+
+    if (!r.isDone) {
+      return { text: r.text }
+    }
+
+    const full = `${draft}\n\n${r.text}`
+    const copied = await $.ui.copy({ text: full })
+
+    return { text: `${full}\n\n${copied.isCopied ? t.copied : ''}`.trimEnd() }
+  })
+
+  on('command.run', { command: 'coach-refine' }, async ($, e) => {
+    const draft = e.args.trim()
+
+    if (draft === '') {
+      return { text: t.empty }
+    }
+
+    const r = await refined($, draft, options)
+
+    if (!r.isDone) {
+      return { text: r.text }
+    }
+
+    const copied = await $.ui.copy({ text: r.text })
+
+    return { text: `${r.text}\n\n${copied.isCopied ? t.copied : ''}`.trimEnd() }
   })
 
   // 보낸 뒤에는 되돌릴 원문이 의미가 없다.
@@ -292,7 +395,7 @@ export const register: Register = (on, options) => {
     const working = await read($, busy)
     const kept = await read($, original)
     const direction = await read($, note)
-    const { Box, Button, Input, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
 
     trace($, `band surface=${e.surface}`)
 
@@ -306,18 +409,84 @@ export const register: Register = (on, options) => {
 
     return (
       <Box gap={1}>
-        <Input
-          key="note"
-          placeholder={t.placeholder}
-          value={direction}
-          submitLabel={t.save}
-          onInput={(value: string) => void update($, note, () => value)}
-          onSubmit={(value: string) => void update($, note, () => value.trim())}
-        />
         <Button key="template" label={t.template} hotkey="t" onPress={() => void insertTemplate($)} />
         <Button key="ask" label={t.ask} hotkey="q" onPress={() => void askGaps($, e.surface, options)} />
         <Button key="refine" label={t.refine} hotkey="r" onPress={() => void refine($, e.surface, options)} />
         {kept !== null && <Button key="undo" label={t.undo} hotkey="u" onPress={() => void restore($)} />}
+        <Button key="settings" label={t.settings} hotkey="s" onPress={() => void openSettings($)} />
+        {direction.trim() !== '' && <Text dimColor>· {t.directionOn}</Text>}
+      </Box>
+    )
+  })
+
+  on('command.run', { command: 'coach-settings' }, async $ => {
+    await openSettings($)
+
+    return { text: t.settingsOpened }
+  })
+
+  // 설정 패널. 이번 세션 요청은 상태에, 늘 쓰는 스타일과 모델은 플러그인 설정에 저장한다.
+  on('ui.render', { component: 'Pane', requestId: SETTINGS }, async ($, e) => {
+    if (e.surface === 'mobile') {
+      const { Text } = $.ui.resolve(e)
+
+      return <Text dimColor>{t.noSettingsHere}</Text>
+    }
+
+    const direction = await read($, note)
+    const { Box, Button, Input, Select, Text } = $.ui.resolve(e)
+    const saved = (field: string) => {
+      const value = options[field]
+
+      return typeof value === 'string' ? value : ''
+    }
+
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Box flexDirection="column">
+          <Text bold>{t.noteLabel}</Text>
+          <Input
+            key="note"
+            placeholder={t.placeholder}
+            value={direction}
+            submitLabel={t.save}
+            autoFocus
+            onInput={(value: string) => void update($, note, () => value)}
+            onSubmit={(value: string) => void update($, note, () => value.trim())}
+          />
+        </Box>
+        <Box flexDirection="column">
+          <Text bold>{t.askStyleLabel}</Text>
+          <Input
+            key="askStyle"
+            placeholder={t.askStylePlaceholder}
+            value={saved('askStyle')}
+            submitLabel={t.save}
+            onSubmit={(value: string) => void saveSetting($, 'askStyle', value.trim())}
+          />
+        </Box>
+        <Box flexDirection="column">
+          <Text bold>{t.refineStyleLabel}</Text>
+          <Input
+            key="refineStyle"
+            placeholder={t.refineStylePlaceholder}
+            value={saved('refineStyle')}
+            submitLabel={t.save}
+            onSubmit={(value: string) => void saveSetting($, 'refineStyle', value.trim())}
+          />
+        </Box>
+        <Select
+          key="refineModel"
+          label={t.modelLabel}
+          value={saved('refineModel') || 'haiku'}
+          options={[
+            { value: 'haiku', label: 'haiku' },
+            { value: 'sonnet', label: 'sonnet' },
+            { value: 'session', label: t.sessionModel },
+          ]}
+          onSelect={(value: string) => void saveSetting($, 'refineModel', value)}
+        />
+        <Button key="close" label={t.close} role="dismiss" onPress={() => void $.ui.close({ id: SETTINGS })} />
       </Box>
     )
   })

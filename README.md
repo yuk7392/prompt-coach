@@ -2,12 +2,13 @@
 
 English | [한국어](README.ko.md)
 
-A Claude Code mod (a function-hook plugin) that puts four buttons above the prompt box.
+A Claude Code mod (a function-hook plugin) that puts buttons above the prompt box.
 
 - **Ask what's missing** (`q`): reads the conversation so far and the draft you are typing, and appends up to three questions the model would have asked before starting, under a `[Clarify]` list with a blank after each. It forks the session's own conversation, so it runs on the session model and reuses the prompt cache.
 - **Refine** (`r`): keeps every fact and condition you wrote and rewrites the draft in plain, ASD-STE100-style sentences (one instruction per sentence, active voice, one term per concept), folding answered `[Clarify]` items into the body and dropping unanswered ones. The model is the `refineModel` setting (`haiku` by default, `sonnet`, or `session`).
 - **Template** (`t`): inserts a prompt skeleton from `templates/default.md` (`default.ko.md` when the band is in Korean), into an empty box or after the draft. No model call.
 - **Undo** (`u`): restores the draft from before the last ask or refine. Sending the prompt clears it.
+- **Settings** (`s`): opens a panel for how you want it (see below) and the Refine model. `/coach-settings` opens it too.
 
 If you send a draft whose `[Clarify]` list still has an empty answer, the first Enter is stopped with a notice and the draft stays in the box; a second Enter on the same draft sends it. No model call.
 
@@ -15,12 +16,23 @@ If you edit the draft while the model is working, the result is not written over
 
 Tell the buttons how you want it in two ways:
 
-- **One-off**: type a direction in the field at the start of the band (e.g. "formal tone, conditions as a list"). It applies to both buttons until you clear it, for this session only.
-- **Standing**: set `askStyle` and `refineStyle` in the plugin's settings. Both are added to the instructions as the user's own direction, never overriding what the draft says.
+- **This session only**: type a direction in the Settings panel (e.g. "formal tone, conditions as a list"). It applies to both buttons until you clear it. The band shows when one is on.
+- **Saved**: set the Ask style and Refine style in the same panel (stored as the `askStyle` and `refineStyle` plugin settings).
+
+Both are added to the instructions as the user's own direction, never overriding what the draft says.
 
 The band speaks Korean when `language` in settings.json is Korean, and English otherwise. Questions and refined text always follow the draft's language.
 
 The instructions for both buttons live in `prompts/ask.md` and `prompts/refine.md` and are read on every press, so edits take effect at once. `{{draft}}` in `ask.md` is replaced by the draft, and `{{style}}` in both by your direction. Both tell the model to answer in the draft's language.
+
+## Apps that draw their own prompt box
+
+Claude Code Desktop draws its own prompt box, so the band and the box-editing buttons may not work there. Two slash commands take the draft as an argument instead, show the result, and copy it to the clipboard:
+
+```
+/coach-ask <your draft>
+/coach-refine <your draft>
+```
 
 ## Install
 
