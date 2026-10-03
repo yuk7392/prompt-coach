@@ -1,6 +1,8 @@
 # prompt-coach
 
-A Claude Code mod (a function-hook plugin) that puts three buttons above the prompt box.
+English | [한국어](README.ko.md)
+
+A Claude Code mod (a function-hook plugin) that puts four buttons above the prompt box.
 
 - **Ask what's missing** (`q`): reads the conversation so far and the draft you are typing, and appends up to three questions the model would have asked before starting, under a `[Clarify]` list with a blank after each. It forks the session's own conversation, so it runs on the session model and reuses the prompt cache.
 - **Refine** (`r`): keeps every fact and condition you wrote and rewrites the draft in plain, ASD-STE100-style sentences (one instruction per sentence, active voice, one term per concept), folding answered `[Clarify]` items into the body and dropping unanswered ones. The model is the `refineModel` setting (`haiku` by default, `sonnet`, or `session`).
@@ -43,7 +45,7 @@ Click the band above the prompt, or press ctrl+x tab, then press a button's key.
 
 - Passes `claude plugin validate` and `tsc` on Claude Code 2.1.286.
 - Not yet tried in a live session: the buttons have not been pressed end to end.
-- Claude Code Desktop draws its own prompt box, where the plugin API may refuse `$.prompt.fill`; checking with `trace.log`.
+- Claude Code Desktop draws its own prompt box, where the plugin API may refuse `$.prompt.fill`; not yet confirmed either way. Set `TRACE` to `true` in `hooks/register.tsx` to log reads and fills to `trace.log`.
 
 ## License
 
