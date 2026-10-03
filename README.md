@@ -8,7 +8,14 @@ A Claude Code mod (a function-hook plugin) that puts three buttons above the pro
 
 If you edit the draft while the model is working, the result is not written over your edit.
 
-The instructions for both buttons live in `prompts/ask.md` and `prompts/refine.md` and are read on every press, so edits take effect at once. `{{draft}}` in `ask.md` is replaced by the draft. Both tell the model to answer in the draft's language.
+Tell the buttons how you want it in two ways:
+
+- **One-off**: type a direction in the field at the start of the band (e.g. "formal tone, conditions as a list"). It applies to both buttons until you clear it, for this session only.
+- **Standing**: set `askStyle` and `refineStyle` in the plugin's settings. Both are added to the instructions as the user's own direction, never overriding what the draft says.
+
+The band speaks Korean when `language` in settings.json is Korean, and English otherwise. Questions and refined text always follow the draft's language.
+
+The instructions for both buttons live in `prompts/ask.md` and `prompts/refine.md` and are read on every press, so edits take effect at once. `{{draft}}` in `ask.md` is replaced by the draft, and `{{style}}` in both by your direction. Both tell the model to answer in the draft's language.
 
 ## Use
 

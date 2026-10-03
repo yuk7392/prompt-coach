@@ -6,6 +6,7 @@ If the draft contains a "[Clarify]" list, fold each answered item into the body 
 
 Order the prompt so the agent learns the goal first: goal, context, constraints, then what counts as done. Use short declarative sentences.
 
+{{style}}
 Write in the language the draft is written in.
 
 Your output goes straight into the prompt box, so output only the refined prompt, with no preface, quotes, or code fences.

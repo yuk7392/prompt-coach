@@ -10,6 +10,7 @@ Pick the questions you would have asked before starting work if you had received
 
 The space under the prompt box is small, so ask at most 3 questions. Having nothing to ask is a normal outcome.
 
+{{style}}
 Write the questions in the language the draft is written in.
 
 The output is parsed by code: one question per line, no numbering or bullets, nothing else. If there is nothing to ask, output the single word "NONE".
