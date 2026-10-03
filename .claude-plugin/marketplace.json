@@ -10,7 +10,7 @@
       "name": "prompt-coach",
       "source": "./",
       "description": "Buttons above the prompt box that ask what your draft is missing and refine it",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "author": {
         "name": "yuk7392",
         "url": "https://github.com/yuk7392"
