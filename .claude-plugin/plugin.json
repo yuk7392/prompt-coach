@@ -8,7 +8,7 @@
       "type": "string",
       "title": "Refine model",
       "description": "Model the Refine button uses; session means the current session model",
-      "default": "session",
+      "default": "haiku",
       "options": [
         "session",
         "haiku",

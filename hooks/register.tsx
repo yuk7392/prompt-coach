@@ -9,6 +9,8 @@ const busy = atom({ plugin: 'prompt-coach', key: 'busy' } as const, null)
 const original = atom({ plugin: 'prompt-coach', key: 'original' } as const, null)
 // 띠의 입력칸에 적은 이번 세션용 요청. 지울 때까지 두 버튼 모두에 붙는다.
 const note = atom({ plugin: 'prompt-coach', key: 'note' } as const, '')
+// 빈 답 경고를 한 번 보여 준 초안. 같은 초안을 다시 보내면 그대로 보낸다.
+const warned = atom({ plugin: 'prompt-coach', key: 'warned' } as const, null)
 
 const HEADER = '[Clarify]'
 
@@ -31,6 +33,8 @@ const STRINGS = {
     ask: 'Ask what is missing',
     refine: 'Refine',
     undo: 'Undo',
+    template: 'Template',
+    blank: (n: number) => `${n} [Clarify] question(s) have no answer. Press Enter again to send anyway.`,
   },
   ko: {
     changed: '그 사이 입력이 바뀌어서 반영하지 않았어요',
@@ -49,15 +53,19 @@ const STRINGS = {
     ask: '빠진 것 묻기',
     refine: '다듬기',
     undo: '되돌리기',
+    template: '골격',
+    blank: (n: number) => `[Clarify] 질문 ${n}개에 답이 비어 있어요. 그대로 보내려면 다시 Enter를 누르세요.`,
   },
 }
 
 let t = STRINGS.en
+let lang: 'en' | 'ko' = 'en'
 
 const pickLanguage = async ($: EngineInterface) => {
   const { language } = await $.settings.read()
 
-  t = typeof language === 'string' && /^(ko|korean)|한국/i.test(language.trim()) ? STRINGS.ko : STRINGS.en
+  lang = typeof language === 'string' && /^(ko|korean)|한국/i.test(language.trim()) ? 'ko' : 'en'
+  t = STRINGS[lang]
 }
 
 // 기본 지시문은 prompts/*.md 에 있다. 사용자가 고칠 수 있게 버튼을 누를 때마다 새로 읽는다.
@@ -214,6 +222,27 @@ const refine = async ($: EngineInterface, surface: string, options: PluginOption
   }
 }
 
+// [Clarify] 목록에서 화살표 뒤가 빈 줄의 수.
+const blankAnswers = (text: string) => {
+  const at = text.lastIndexOf(HEADER)
+
+  return at < 0 ? 0 : text.slice(at).split('\n').filter(line => /^\s*→\s*$/.test(line)).length
+}
+
+// 골격은 templates/ 에 있다. 한국어 화면이면 default.ko.md 를 먼저 찾는다.
+const insertTemplate = async ($: EngineInterface) => {
+  const root = `${$.plugin.root}/templates`
+  const localized = `${root}/default.${lang}.md`
+  const text = (await $.fs.exists(localized)) ? await $.fs.read(localized) : await $.fs.read(`${root}/default.md`)
+  const box = await $.prompt.read()
+  const filled =
+    box.text.trim() === ''
+      ? await $.prompt.fill({ text: text.trimEnd(), mode: 'replace' })
+      : await $.prompt.fill({ text: `\n\n${text.trimEnd()}`, mode: 'append' })
+
+  trace($, `template isFilled=${filled.isFilled} refusal=${filled.refusal ?? '-'}`)
+}
+
 const restore = async ($: EngineInterface) => {
   const kept = await read($, original)
 
@@ -238,7 +267,18 @@ export const register: Register = (on, options) => {
 
   // 보낸 뒤에는 되돌릴 원문이 의미가 없다.
   on('prompt.submit', async ($, e, next) => {
+    const blanks = e.origin.kind === 'composer' ? blankAnswers(e.text) : 0
+
+    if (blanks > 0 && (await read($, warned)) !== e.text) {
+      await update($, warned, () => e.text)
+      // 막힌 초안이 입력창에서 사라지지 않게 다시 넣는다.
+      void $.prompt.fill({ text: e.text, mode: 'replace' })
+
+      return { drop: t.blank(blanks) }
+    }
+
     await update($, original, () => null)
+    await update($, warned, () => null)
 
     return next(e)
   })
@@ -274,6 +314,7 @@ export const register: Register = (on, options) => {
           onInput={(value: string) => void update($, note, () => value)}
           onSubmit={(value: string) => void update($, note, () => value.trim())}
         />
+        <Button key="template" label={t.template} hotkey="t" onPress={() => void insertTemplate($)} />
         <Button key="ask" label={t.ask} hotkey="q" onPress={() => void askGaps($, e.surface, options)} />
         <Button key="refine" label={t.refine} hotkey="r" onPress={() => void refine($, e.surface, options)} />
         {kept !== null && <Button key="undo" label={t.undo} hotkey="u" onPress={() => void restore($)} />}
