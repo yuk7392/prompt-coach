@@ -1,6 +1,6 @@
 {
   "name": "prompt-coach",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Buttons above the prompt box that ask what your draft is missing and refine it",
   "author": {
     "name": "yuk7392",
@@ -16,49 +16,5 @@
     "mod",
     "prompt-box"
   ],
-  "types": "./types/index.d.ts",
-  "userConfig": {
-    "refineModel": {
-      "type": "string",
-      "title": "Refine model",
-      "description": "Model the Refine button uses; session means the current session model",
-      "default": "haiku",
-      "options": [
-        "session",
-        "haiku",
-        "sonnet"
-      ]
-    },
-    "askStyle": {
-      "type": "string",
-      "title": "Ask style",
-      "description": "Standing direction for the Ask button, e.g. \"ask about scope and test range first\"",
-      "default": ""
-    },
-    "refineStyle": {
-      "type": "string",
-      "title": "Refine style",
-      "description": "Standing direction for the Refine button, e.g. \"list conditions as bullets\"",
-      "default": ""
-    },
-    "refineEffort": {
-      "type": "string",
-      "title": "Refine effort",
-      "description": "Effort for the Refine call; models without effort (haiku) ignore it",
-      "default": "low",
-      "options": [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max"
-      ]
-    },
-    "showUsage": {
-      "type": "boolean",
-      "title": "Show tokens used",
-      "description": "Show a toast with the tokens each press used",
-      "default": false
-    }
-  }
+  "types": "./types/index.d.ts"
 }
